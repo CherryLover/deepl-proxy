@@ -41,11 +41,71 @@ def deep_l_translate():
         'Content-Type': 'application/json'
     }
     response = requests.post(url, headers=headers, json=request.json)
-    return jsonify(response.json()), response.status_code
+    if response.status_code == 200:
+        return jsonify(response.json()), response.status_code
+    else:
+        return Response(f'Error {response.status_code} {response.text}', status=403)
 
 
+@app.route('/v2/usage', methods=['GET'])
 def chk_keys():
     print("Checking keys")
+    for auth_file in USER_AUTH:
+        save_keys = []
+        with open(f'config/{auth_file}.json', 'r') as file:
+            keys = json.load(file)
+        if not keys:
+            print(f'No keys found in {auth_file}.json')
+        else:
+            for key in keys:
+                url = 'https://api-free.deepl.com/v2/usage?auth_key=' + key["key"]
+                response = requests.get(url)
+                if response.status_code == 200:
+                    key["count"] = response.json()["character_count"]
+                    key["limit"] = response.json()["character_limit"]
+                    save_keys.append(key)
+                    print('response status: 200 OK')
+                    print("response json: ", response.json())
+                    print(f'key: {key["key"]}, count: {key["count"]}')
+                else:
+                    print(f'key: {key["key"]}, count: {key["count"]}, status: {response.status_code}')
+                    save_keys.append(key)
+            json.dump(save_keys, open(f'config/{auth_file}.json', 'w'), indent=4)
+    return Response('OK', status=200)
+
+
+# 添加 key，如果指定的 auth 文件不存在，则创建后添加，如果 key 已存在，则返回 201
+@app.route('/v2/add', methods=['POST', 'GET'])
+def add_key():
+    key = ''
+    new_auth_file_name = ''
+    if request.method == 'POST':
+        key = request.json.get('key')
+        new_auth_file_name = request.json.get('auth')
+    else:
+        key = request.args.get('key')
+        new_auth_file_name = request.args.get('auth')
+    if not key:
+        return Response('Key not found in request', status=400)
+
+    if new_auth_file_name not in USER_AUTH:
+        USER_AUTH.append(new_auth_file_name)
+        list = []
+        list.append({'key': key, 'count': 0})
+        json.dump(list, open(f'config/{new_auth_file_name}.json', 'w'), indent=4)
+        return Response('Auth file created and key added', status=200)
+
+    with open(f'config/{new_auth_file_name}.json', 'r') as file:
+        keys = json.load(file)
+    if not keys:
+        keys = []
+    for k in keys:
+        if k['key'] == key:
+            return Response('Key already exists', status=201)
+    keys.append({'key': key, 'count': 0})
+    json.dump(keys, open(f'config/{new_auth_file_name}.json', 'w'), indent=4)
+    return Response('Key added', status=200)
+
 
 
 @app.route('/')
