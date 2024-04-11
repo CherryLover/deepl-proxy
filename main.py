@@ -1,8 +1,13 @@
+import time
+
 from flask import Flask, request, jsonify, Response
 import json
 import requests
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
 
 app = Flask(__name__)
+scheduler = BackgroundScheduler(daemon=True)
 USER_AUTH = []
 
 
@@ -49,7 +54,7 @@ def deep_l_translate():
 
 @app.route('/v2/usage', methods=['GET'])
 def chk_keys():
-    print("Checking keys")
+    print(f"{time.time()} Checking keys ")
     for auth_file in USER_AUTH:
         save_keys = []
         with open(f'config/{auth_file}.json', 'r') as file:
@@ -121,6 +126,13 @@ def get_auth():
         for file in files:
             if file.endswith('.json'):
                 USER_AUTH.append(file.split('.json')[0])
+
+
+scheduler.add_job(func=chk_keys, trigger="interval", seconds=60*60)
+scheduler.start()
+
+# Shut down the scheduler when exiting the app
+atexit.register(lambda: scheduler.shutdown())
 
 
 if __name__ == '__main__':
