@@ -93,6 +93,11 @@ def add_key():
     if not key:
         return Response('Key not found in request', status=400)
 
+    # 检查 config 文件夹是否存在，不存在则创建
+    import os
+    if not os.path.exists('config'):
+        os.makedirs('config')
+
     if new_auth_file_name not in USER_AUTH:
         USER_AUTH.append(new_auth_file_name)
         list = []
